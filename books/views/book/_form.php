@@ -19,8 +19,9 @@ use yii\widgets\ActiveForm;
     <?= $form->field($model, 'year')->textInput() ?>
 
     <?= $form->field($model, 'genre')->textInput(['maxlength' => true]) ?>
-
-<!--    --><?//= $form->field($model, 'image')->textInput(['maxlength' => true]) ?>
+    <?php
+    echo (Html::img($model->image, ['width' => '150px', 'style' => 'max->width:100%']));
+    ?>
 
     <?= $form->field($model, 'image')->fileInput() ?>
 

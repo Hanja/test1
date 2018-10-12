@@ -10,6 +10,7 @@ use yii\web\NotFoundHttpException;
 use yii\filters\VerbFilter;
 use yii\web\UploadedFile;
 use yii\db\ActiveRecord;
+use yii\filters\AccessControl;
 
 /**
  * BookController implements the CRUD actions for Book model.
@@ -22,6 +23,25 @@ class BookController extends Controller
     public function behaviors()
     {
         return [
+            'access' => [
+                'class' => AccessControl::className(),
+                'rules' => [
+                    [
+                        'allow' => true,
+                        'roles' => ['?'],
+                        'actions' => ['index', 'view'],
+                    ],
+                    [
+                        'allow' => true,
+                        'roles' => ['@'],
+                        'actions' => ['index', 'view', 'create', 'update', 'delete'],
+                    ],
+                ],
+                'denyCallback'  => function ($rule, $action) {
+                    Yii::$app->session->setFlash('error', 'Возможно только после авторизации.');
+                    Yii::$app->user->loginRequired();
+                },
+            ],
             'verbs' => [
                 'class' => VerbFilter::className(),
                 'actions' => [
@@ -68,27 +88,23 @@ class BookController extends Controller
      */
     public function actionCreate()
     {
-        if (Yii::$app->user->isGuest)
-        {
-            return $this->redirect('http://books/web/index.php?r=site%2Flogin');
-        }
-        else {
-                $model = new Book();
-
-                if ($model->load(Yii::$app->request->post())) {
-                    if ($model->validate()) {
-                        if ($model->imageFile && $model->imageFile->saveAs('image/' . $model->imageFile->baseName . '.' . $model->imageFile->extension)) {
-                            $model->image = 'image/' . $model->imageFile->baseName . '.' . $model->imageFile->extension;
-                        }
-                        if ($model->save()) {
-                            return $this->redirect(['view', 'id' => $model->name]);
-                        }
-                    }
+        $model = new Book();
+        $str = date(H).date(i).date(s);
+        if ($model->load(Yii::$app->request->post())) {
+            $model->imageFile = UploadedFile::getInstance($model,'image');
+            if ($model->validate()) {
+                if ($model->imageFile){
+                    $model->imageFile->saveAs('image/' . $str . $model->imageFile->baseName . '.' . $model->imageFile->extension);
+                    $model->image = 'image/' . $str. $model->imageFile->baseName . '.' . $model->imageFile->extension;
                 }
-                return $this->render('create', [
-                    'model' => $model,
-                    ]);
+                if ($model->save()) {
+                    return $this->redirect(['view', 'id' => $model->name]);
+                }
+            }
         }
+        return $this->render('create', [
+            'model' => $model,
+        ]);
     }
 
     /**
@@ -100,19 +116,25 @@ class BookController extends Controller
      */
     public function actionUpdate($id)
     {
-        if (Yii::$app->user->isGuest)
-        {
-            return $this->redirect('http://books/web/index.php?r=site%2Flogin');
-        }
-        else {
-            $model = $this->findModel($id);
-            if ($model->load(Yii::$app->request->post()) && $model->save()) {
-                return $this->redirect(['view', 'id' => $model->name]);
+        $model = $this->findModel($id);
+        $path = $model->image;
+        $str = date(H).date(i).date(s);
+        if ($model->load(Yii::$app->request->post())) {
+            $model->imageFile = UploadedFile::getInstance($model,'image');
+            if ($model->validate()) {
+                if ($model->imageFile){
+                    $model->imageFile->saveAs('image/' . $str. $model->imageFile->baseName . '.' . $model->imageFile->extension);
+                    $model->image = 'image/' . $str. $model->imageFile->baseName . '.' . $model->imageFile->extension;
+                }
+                unlink($path);
+                if ($model->save()) {
+                    return $this->redirect(['view', 'id' => $model->name]);
+                }
             }
-            return $this->render('update', [
+        }
+        return $this->render('update', [
                 'model' => $model,
             ]);
-        }
     }
 
     /**
@@ -124,14 +146,10 @@ class BookController extends Controller
      */
     public function actionDelete($id)
     {
-        if (Yii::$app->user->isGuest)
-        {
-            return $this->redirect('http://books/web/index.php?r=site%2Flogin');
-        }
-        else {
-            $this->findModel($id)->delete();
-            return $this->redirect(['index']);
-        }
+        $path = $this->findModel($id)->image;
+        $this->findModel($id)->delete();
+        unlink($path);
+        return $this->redirect(['index']);
     }
 
     /**
